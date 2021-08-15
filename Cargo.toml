@@ -1,17 +1,5 @@
-[package]
-name = "ccxt"
-version = "0.1.0"
-edition = "2018"
-authors = ["Rafal Piotrowski <rafal.piotrowski@live.com>"]
-
-[lib]
-name = "ccxt"
-path = "src/lib.rs"
-
-[[bin]]
-name = "rccxt"
-path = "src/main.rs"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
+[workspace]
+members = [
+    "ccxt",
+    "ccxt-cli"
+]

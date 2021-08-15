@@ -1,0 +1,20 @@
+[package]
+name = "ccxt-cli"
+version = "0.1.0"
+edition = "2018"
+authors = ["Rafal Piotrowski <rafal.piotrowski@live.com>"]
+license = "MIT"
+description = "Rust implementation of CCXT - CryptoCurrency Exchange Trading library"
+repository = "https://github.com/rafalpiotrowski/ccxt-rust"
+documentation = "https://docs.rs/ccxt"
+categories = ["trading"]
+readme = "README.md"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[[bin]]
+name = "ccxt"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1.10.0", features = ["full"] }
+ccxt = { path = "../ccxt" }
