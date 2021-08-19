@@ -10,6 +10,7 @@ extern crate async_trait;
 pub mod errors;
 pub mod exchange;
 pub mod coinbase;
+pub mod kraken;
 
 pub type DateTime = chrono::DateTime<chrono::Utc>;
 

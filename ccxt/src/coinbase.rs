@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use crate::{DateTime, Result, exchange::*, errors::Error};
+use crate::{DateTime, Result, exchange::*};
 
 #[derive(Debug)]
 pub struct Coinbase {
@@ -7,17 +7,13 @@ pub struct Coinbase {
 }
 
 impl Coinbase {
-    pub fn new() -> Self {
+    pub fn new(id: &'static str) -> Self {
         Coinbase {
-            exchange: Exchange::new("coinbase", "Coinbase")
-            .version("v2")
+            exchange: Exchange::new(id, "Coinbase")
             .rate_limit(400)
             .headers("CB-VERSION", "2018-05-30")
             .user_agent(UserAgent::Chrome)
             .countries(Country::UnitedStates)
-            .has(Functionality::Cors, true)
-            .has(Functionality::CreateOrder, false)
-            .has(Functionality::CancelAllOrders, false)
         }
     }
 }
@@ -37,6 +33,7 @@ pub struct Data<D> {
 #[async_trait]
 impl ServerTime for Coinbase {
     async fn get_time(&self) -> Result<DateTime> {
+        
         let request_url = format!("https://api.coinbase.com/v2/time");
         println!("{}", request_url);
         let response = reqwest::get(&request_url).await?;
