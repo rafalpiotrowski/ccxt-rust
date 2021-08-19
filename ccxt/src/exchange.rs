@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap};
 use async_trait::async_trait;
 
-use crate::{Result, DateTime};
+use crate::{Result, DateTime, errors::Error};
 
 #[derive(Debug,Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum AccessType {
@@ -49,6 +49,15 @@ impl Api {
     pub fn api_secret(mut self, value: &'static str) -> Self {
         self.secret = Some(value);
         self
+    }
+
+    pub fn get_function_params(&self, f: &Functionality) -> Result<&FunctionalityParams>
+    {
+        let p = self.functions.get(f);
+        match p {
+            Some(par) => Ok(par),
+            None => Err(Error::ApiFunctionNotSupported("function not supported by api"))
+        }
     }
 }
 
@@ -138,11 +147,6 @@ pub struct Exchange {
     pub headers: BTreeMap<&'static str, &'static str>,
 }
 
-#[async_trait]
-pub trait ServerTime {
-    async fn get_time(&self) -> Result<DateTime>;
-}
-
 impl Exchange {
     pub fn new(id:&'static str, name:&'static str) -> Self {
         Exchange {
@@ -184,4 +188,17 @@ impl Exchange {
         self.headers.insert(key, value);
         self
     }
+}
+pub trait ApiCalls {
+    fn get_url(&self, f: &Functionality) -> Result<String>;
+}
+
+#[async_trait]
+pub trait ServerTime {
+    async fn get_time(&self) -> Result<DateTime>;
+}
+
+#[async_trait]
+pub trait SystemStatus {
+    async fn get_status(&self) -> Result<String>;
 }

@@ -21,17 +21,12 @@ impl Kraken {
             .function(Functionality::SystemStatus,FunctionalityParams::new(AccessType::Public, Action::Get, "SystemStatus"))
             }
     }
+}
 
-    fn get_function_params(&self, f: &Functionality) -> Result<&FunctionalityParams> {
-        let p = self.api.functions.get(f);
-        match p {
-            Some(par) => Ok(par),
-            None => Err(Error::ApiFunctionNotSupported("function not supported by api"))
-        }
-    }
+impl ApiCalls for Kraken {
 
-    pub fn get_function_url(&self, f: &Functionality) -> Result<String> {
-        let p = self.get_function_params(f)?;
+    fn get_url(&self, f: &Functionality) -> Result<String> {
+        let p = self.api.get_function_params(f)?;
         let at = match p.access_type {
             AccessType::Private => "private",
             AccessType::Public => "public"
@@ -61,6 +56,20 @@ impl Default for Time {
 }
 
 #[derive(Deserialize, Debug)]
+pub struct Status {
+    timestamp: DateTime,
+    status: String,
+}
+impl Default for Status {
+    fn default() -> Self {
+        Status { 
+            timestamp: Utc::now(), 
+            status: "".to_string()
+        }
+    }
+}
+
+#[derive(Deserialize, Debug)]
 #[serde(rename(deserialize = ""), rename_all = "camelCase")]
 pub struct Data<R> {
     error: Vec<String>,
@@ -69,11 +78,29 @@ pub struct Data<R> {
 }
 
 #[async_trait]
+impl SystemStatus for Kraken {
+
+    async fn get_status(&self) -> Result<String> {
+        let request_url = self.get_url(&Functionality::SystemStatus)?;
+        println!("url: {}", request_url);
+
+        let response = reqwest::get(&request_url).await?;
+
+        let res = response.json::<Data<Status>>().await?;
+        if res.error.len() > 0 {
+            return Err(Error::ApiCallError(res.error[0].clone()));
+        }
+        println!("{:?}", res);
+        Ok(res.result.status)
+    }
+}
+
+#[async_trait]
 impl ServerTime for Kraken {
 
     async fn get_time(&self) -> Result<DateTime> {
         
-        let request_url = self.get_function_url(&Functionality::Time)?;
+        let request_url = self.get_url(&Functionality::Time)?;
         println!("url: {}", request_url);
 
         let response = reqwest::get(&request_url).await?;
