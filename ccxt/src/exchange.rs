@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap};
+use std::{collections::{BTreeMap, HashMap}};
 use async_trait::async_trait;
 
 use crate::{Result, DateTime, errors::Error};
@@ -18,12 +18,18 @@ pub enum Action {
 
 pub type UrlPath = &'static str;
 
+#[derive(Deserialize, Debug)]
+#[serde(rename(deserialize = ""), rename_all = "camelCase")]
+pub struct ApiConfig {
+    pub key: String,
+    pub secret: String,
+}
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Api {
     pub url: &'static str,
-    pub key: Option<&'static str>,
-    pub secret: Option<&'static str>,
+    pub key: Option<String>,
+    pub secret: Option<String>,
     pub version: &'static str,
     pub functions: BTreeMap<Functionality, FunctionalityParams>
 }
@@ -41,12 +47,12 @@ impl Api {
         self
     }
 
-    pub fn api_key(mut self, value: &'static str) -> Self {
+    pub fn api_key(mut self, value: String) -> Self {
         self.key = Some(value);
         self
     }
 
-    pub fn api_secret(mut self, value: &'static str) -> Self {
+    pub fn api_secret(mut self, value: String) -> Self {
         self.secret = Some(value);
         self
     }
@@ -58,6 +64,18 @@ impl Api {
             Some(par) => Ok(par),
             None => Err(Error::ApiFunctionNotSupported("function not supported by api"))
         }
+    }
+
+    pub fn encode_uri(values: &HashMap<&str, String>) -> String {
+        if values.is_empty() {
+            return "".to_string();
+        }
+        let mut acc = "".to_string();
+        for (name, param) in values {
+            acc += &(name.to_string() + "=" + param + "&");
+        }
+        acc.pop(); // remove the last "&"
+        acc
     }
 }
 
@@ -100,15 +118,15 @@ pub enum Functionality {
 pub struct FunctionalityParams {
     pub access_type: AccessType,
     pub action: Action,
-    pub url_path: &'static str
+    pub uri_path: &'static str
 }
 
 impl FunctionalityParams {
-    pub fn new(access_type: AccessType, action: Action, url_path: &'static str) -> Self {
+    pub fn new(access_type: AccessType, action: Action, uri_path: &'static str) -> Self {
         FunctionalityParams {
             access_type,
             action,
-            url_path
+            uri_path
         }
     }
 }
@@ -191,6 +209,7 @@ impl Exchange {
 }
 pub trait ApiCalls {
     fn get_url(&self, f: &Functionality) -> Result<String>;
+    fn get_uri_path(&self, f: &Functionality) -> Result<String>;
 }
 
 #[async_trait]
@@ -201,4 +220,9 @@ pub trait ServerTime {
 #[async_trait]
 pub trait SystemStatus {
     async fn get_status(&self) -> Result<String>;
+}
+
+#[async_trait]
+pub trait Balance {
+    async fn get_balance(&self) -> Result<String>;
 }

@@ -1,6 +1,11 @@
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use crate::{DateTime, Result, exchange::*, errors::Error};
 use chrono::prelude::Utc;
+use sha2::{Digest, Sha256, Sha512};
+use data_encoding::{BASE64};
+use hmac::*;
 
 #[derive(Debug)]
 pub struct Kraken {
@@ -9,33 +14,56 @@ pub struct Kraken {
 }
 
 impl Kraken {
-    pub fn new(id: &'static str) -> Self {
+    pub fn new(id: &'static str, api_key: String, api_secret: String) -> Self {
         Kraken {
             exchange: Exchange::new(id, "Kraken")
             .rate_limit(3000)
             .countries(Country::UnitedStates),
             api: Api::new("https://api.kraken.com", "0")
-            .api_key("1234")
-            .api_secret("111")
+            .api_key(api_key)
+            .api_secret(api_secret)
             .function(Functionality::Time,FunctionalityParams::new(AccessType::Public, Action::Get, "Time"))
             .function(Functionality::SystemStatus,FunctionalityParams::new(AccessType::Public, Action::Get, "SystemStatus"))
+            .function(Functionality::Balance,FunctionalityParams::new(AccessType::Private, Action::Post, "Balance"))    
             }
+    }
+
+    fn get_signature(&self, uri_path: &String, post_data: &String, nonce: &String) -> Result<String> {
+        let message_presha256 = format!("{}{}", nonce, post_data);
+
+        let mut sha256 = Sha256::default();
+        sha256.update(&message_presha256.as_bytes());
+
+        let output = sha256.finalize();
+
+        let mut concatenated = uri_path.as_bytes().to_vec();
+        for elem in output {
+            concatenated.push(elem);
+        }
+
+        let s = self.api.secret.as_ref().unwrap();
+        let hmac_key = BASE64.decode(s.as_bytes()).unwrap();
+        let mut mac = Hmac::<Sha512>::new_from_slice(&hmac_key[..]).unwrap();
+        mac.update(&concatenated);
+        Ok(BASE64.encode(&mac.finalize().into_bytes()))
     }
 }
 
 impl ApiCalls for Kraken {
 
     fn get_url(&self, f: &Functionality) -> Result<String> {
+        Ok(format!("{}{}", self.api.url, self.get_uri_path(f).unwrap()))
+    }
+
+    fn get_uri_path(&self, f: &Functionality) -> Result<String> {
         let p = self.api.get_function_params(f)?;
-        let at = match p.access_type {
-            AccessType::Private => "private",
-            AccessType::Public => "public"
-        };
-        Ok(format!("{}/{}/{}/{}", 
-            self.api.url, 
+        Ok(format!("/{}/{}/{}",
             self.api.version, 
-            at,
-            p.url_path))
+            match p.access_type {
+                AccessType::Private => "private",
+                AccessType::Public => "public"
+            },
+            p.uri_path))
     }
 }
 
@@ -111,6 +139,39 @@ impl ServerTime for Kraken {
         }
         println!("{:?}", res);
         Ok(res.result.rfc1123)
+    }
+}
+
+#[async_trait]
+impl Balance for Kraken {
+    async fn get_balance(&self) -> Result<String> {
+        
+        let uri_path = self.get_uri_path(&Functionality::Balance)?;
+        println!("uri: {}", uri_path);
+        
+        let nonce = Utc::now().timestamp_millis().to_string();
+        
+        let mut params = HashMap::new();
+        params.insert("nonce", nonce.clone());
+        
+        let post_data = Api::encode_uri(&params);
+        
+        let signature = self.get_signature(&uri_path, &post_data, &nonce)?;
+
+        let client = reqwest::Client::new();
+        let res = client.post(format!("{}{}", self.api.url, uri_path))
+            .json(&params)
+            .header("API-Key", self.api.key.as_ref().unwrap())
+            .header("API-Sign", &signature)
+            .send()
+            .await?;
+
+        let res = res.json::<Data<Time>>().await?;
+        if res.error.len() > 0 {
+            return Err(Error::ApiCallError(res.error[0].clone()));
+        }
+        println!("{:?}", res);
+        Ok("".to_string())
     }
 }
 

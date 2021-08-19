@@ -16,8 +16,8 @@ impl Coinbase {
             .user_agent(UserAgent::Chrome)
             .countries(Country::UnitedStates),
             api: Api::new("https://api.coinbase.com", "v2")
-            .api_key("1234")
-            .api_secret("111")
+            .api_key("1234".to_string())
+            .api_secret("111".to_string())
             .function(Functionality::Time,FunctionalityParams::new(AccessType::Public, Action::Get, "time"))
             }
         }
@@ -26,15 +26,14 @@ impl Coinbase {
 impl ApiCalls for Coinbase {
 
     fn get_url(&self, f: &Functionality) -> Result<String> {
+        Ok(format!("{}{}", self.api.url, self.get_uri_path(f).unwrap()))
+    }
+
+    fn get_uri_path(&self, f: &Functionality) -> Result<String> {
         let p = self.api.get_function_params(f)?;
-        let _at = match p.access_type {
-            AccessType::Private => "private",
-            AccessType::Public => "public"
-        };
-        Ok(format!("{}/{}/{}", 
-            self.api.url, 
+        Ok(format!("/{}/{}", 
             self.api.version, 
-            p.url_path))
+            p.uri_path))
     }
 }
 

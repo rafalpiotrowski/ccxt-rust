@@ -1,10 +1,15 @@
 use ccxt::coinbase::Coinbase;
 use ccxt::kraken::Kraken;
-use ccxt::exchange::{ServerTime, SystemStatus};
+use ccxt::exchange::{ApiConfig, ServerTime, SystemStatus};
+use std::fs::File;
+use std::io::Read;
 
 #[tokio::main]
 async fn main() {
     println!("Hello, world!");
+
+    let path = std::env::current_dir().unwrap();
+    println!("The current directory is {}", path.display());
 
     let h = tokio::spawn(async {
         println!("Coinbase get time");
@@ -14,8 +19,13 @@ async fn main() {
         });
 
     let h1 = tokio::spawn(async {
+        let file = File::open("ccxt-cli/api_kraken.json")
+            .unwrap();
+        let api_config: ApiConfig = serde_json::from_reader(file)
+            .unwrap();
+
         println!("Kraken get time");
-        let kraken = Kraken::new("kraken");
+        let kraken = Kraken::new("kraken", api_config.key, api_config.secret);
         let time = kraken.get_time().await.unwrap();
         println!("Kraken time: {}", time);
 
