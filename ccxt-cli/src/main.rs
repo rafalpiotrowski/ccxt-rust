@@ -1,6 +1,6 @@
 use ccxt::coinbase::Coinbase;
 use ccxt::kraken::Kraken;
-use ccxt::exchange::{ApiConfig, ServerTime, SystemStatus};
+use ccxt::exchange::{ApiConfig, Balance, ServerTime, SystemStatus};
 use std::fs::File;
 use std::io::Read;
 
@@ -19,7 +19,7 @@ async fn main() {
         });
 
     let h1 = tokio::spawn(async {
-        let file = File::open("ccxt-cli/api_kraken.json")
+        let file = File::open("api_kraken.json")
             .unwrap();
         let api_config: ApiConfig = serde_json::from_reader(file)
             .unwrap();
@@ -31,6 +31,9 @@ async fn main() {
 
         let status = kraken.get_status().await.unwrap();
         println!("Kraken is: {}", status);
+
+        let b = kraken.get_balance().await.unwrap();
+        println!("Kraken balance is: {}", b);
     });
 
     let _t1 = match h.await {

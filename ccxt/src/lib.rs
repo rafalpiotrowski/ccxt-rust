@@ -11,6 +11,7 @@ pub mod errors;
 pub mod exchange;
 pub mod coinbase;
 pub mod kraken;
+pub mod rfc1123_date_format;
 
 pub type DateTime = chrono::DateTime<chrono::Utc>;
 
