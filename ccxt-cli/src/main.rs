@@ -26,14 +26,18 @@ async fn main() {
 
         println!("Kraken get time");
         let kraken = Kraken::new("kraken", api_config.key, api_config.secret);
+
         let time = kraken.get_time().await.unwrap();
         println!("Kraken time: {}", time);
 
         let status = kraken.get_status().await.unwrap();
         println!("Kraken is: {}", status);
 
-        let b = kraken.get_balance().await.unwrap();
-        println!("Kraken balance is: {}", b);
+        let b = kraken.get_balance().await;
+        match b {
+            Ok(a) => println!("Kraken balance is: {:?}", a),
+            Err(x) => println!("Kraken balance failed: {:?}", x) 
+        }        
     });
 
     let _t1 = match h.await {

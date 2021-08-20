@@ -222,7 +222,12 @@ pub trait SystemStatus {
     async fn get_status(&self) -> Result<String>;
 }
 
+
+#[derive(Deserialize, Debug, Clone, Default)]
+pub struct AccountBalance {
+    pub CHF: Option<String>
+}
 #[async_trait]
 pub trait Balance {
-    async fn get_balance(&self) -> Result<String>;
+    async fn get_balance(&self) -> Result<AccountBalance>;
 }

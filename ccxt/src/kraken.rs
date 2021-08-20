@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, net::ToSocketAddrs};
 
 use async_trait::async_trait;
 use crate::{DateTime, Result, exchange::*, errors::Error};
@@ -70,11 +70,6 @@ impl ApiCalls for Kraken {
     }
 }
 
-#[derive(Deserialize, Debug, Default)]
-pub struct AccountBalance {
-    pub CHF: String
-}
-
 #[derive(Deserialize, Debug)]
 pub struct Time {
     #[serde(with = "rfc1123_date_format")]
@@ -108,8 +103,7 @@ impl Default for Status {
 #[serde(rename(deserialize = ""), rename_all = "camelCase")]
 pub struct Data<R> {
     error: Vec<String>,
-    #[serde(default)]
-    result: R
+    result: Option<R>
 }
 
 #[async_trait]
@@ -126,7 +120,7 @@ impl SystemStatus for Kraken {
             return Err(Error::ApiCallError(res.error[0].clone()));
         }
         println!("{:?}", res);
-        Ok(res.result.status)
+        Ok(res.result.unwrap().status)
     }
 }
 
@@ -145,13 +139,13 @@ impl ServerTime for Kraken {
             return Err(Error::ApiCallError(res.error[0].clone()));
         }
         println!("{:?}", res);
-        Ok(res.result.rfc1123)
+        Ok(res.result.unwrap().rfc1123)
     }
 }
 
 #[async_trait]
 impl Balance for Kraken {
-    async fn get_balance(&self) -> Result<String> {
+    async fn get_balance(&self) -> Result<AccountBalance> {
         
         let uri_path = self.get_uri_path(&Functionality::Balance)?;
         println!("uri: {}", uri_path);
@@ -173,14 +167,14 @@ impl Balance for Kraken {
         println!("Reqest: {:?}", f);
         let res = f.send().await?;
 
-        let s = res.text().await?;
- /*        
         let res = res.json::<Data<AccountBalance>>().await?;
         if res.error.len() > 0 {
             return Err(Error::ApiCallError(res.error[0].clone()));
         }
-        println!("{:?}", res);
-         */
-        Ok(s)
+
+        match res.result {
+            None => Err(Error::AccountBalanceEmpty()),
+            Some(a) => Ok(a),
+        }
     }
 }
