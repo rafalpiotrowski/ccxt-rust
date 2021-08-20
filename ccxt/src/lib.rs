@@ -16,3 +16,5 @@ pub mod rfc1123_date_format;
 pub type DateTime = chrono::DateTime<chrono::Utc>;
 
 pub type Result<R> = anyhow::Result<R, errors::Error>;
+
+pub type ApiRequest = reqwest::RequestBuilder;

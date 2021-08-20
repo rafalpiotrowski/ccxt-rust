@@ -21,7 +21,7 @@ API-Sign 	4/dpxb3iT4tp/ZCVEwSnEsLxx0bqyhLpdfOpc6fn7OR8+UClSV5n9E6aSS8MPtnRfp32bA
         let uri_path = "/0/private/AddOrder".to_string();
         let post_data = "nonce=1616492376594&ordertype=limit&pair=XBTUSD&price=37500&type=buy&volume=1.25".to_string();
         let nonce = "1616492376594".to_string();
-        let s = k.get_signature(&uri_path, &post_data, &nonce).unwrap();
+        let s = k.get_signature(&uri_path, &post_data, &nonce);
         assert_eq!("4/dpxb3iT4tp/ZCVEwSnEsLxx0bqyhLpdfOpc6fn7OR8+UClSV5n9E6aSS8MPtnRfp32bAb0nmbRn6H8ndwLUQ==".to_string(), s);
     }
 }

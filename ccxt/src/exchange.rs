@@ -1,7 +1,7 @@
 use std::{collections::{BTreeMap, HashMap}};
 use async_trait::async_trait;
 
-use crate::{Result, DateTime, errors::Error};
+use crate::{ApiRequest, DateTime, Result, errors::Error};
 
 #[derive(Debug,Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum AccessType {
@@ -208,8 +208,9 @@ impl Exchange {
     }
 }
 pub trait ApiCalls {
-    fn get_url(&self, f: &Functionality) -> Result<String>;
-    fn get_uri_path(&self, f: &Functionality) -> Result<String>;
+    fn get_url(&self, params: &FunctionalityParams) -> String;
+    fn get_uri_path(&self, params: &FunctionalityParams) -> String;
+    fn get_request(&self, f: &Functionality, payload: HashMap<&str, String>) -> Result<ApiRequest>;
 }
 
 #[async_trait]

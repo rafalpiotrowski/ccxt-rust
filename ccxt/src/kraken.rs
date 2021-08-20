@@ -1,7 +1,8 @@
 use std::{collections::HashMap, net::ToSocketAddrs};
 
 use async_trait::async_trait;
-use crate::{DateTime, Result, exchange::*, errors::Error};
+use serde::de::DeserializeOwned;
+use crate::{ApiRequest, DateTime, Result, errors::Error, exchange::*};
 use chrono::prelude::Utc;
 use sha2::{Digest, Sha256, Sha512};
 use data_encoding::{BASE64};
@@ -31,7 +32,7 @@ impl Kraken {
             }
     }
 
-    pub fn get_signature(&self, uri_path: &String, post_data: &String, nonce: &String) -> Result<String> {
+    pub fn get_signature(&self, uri_path: &String, post_data: &String, nonce: &String) -> String {
         let message_presha256 = format!("{}{}", nonce, post_data);
 
         let mut sha256 = Sha256::default();
@@ -48,25 +49,75 @@ impl Kraken {
         let hmac_key = BASE64.decode(s.as_bytes()).unwrap();
         let mut mac = Hmac::<Sha512>::new_from_slice(&hmac_key[..]).unwrap();
         mac.update(&concatenated);
-        Ok(BASE64.encode(&mac.finalize().into_bytes()))
+        BASE64.encode(&mac.finalize().into_bytes())
+    }
+
+    pub async fn get_data<T>(&self, f: &Functionality, payload: HashMap<&str, String>) -> Result<T> 
+    where T: DeserializeOwned
+    {
+        let rb   = self.get_request(f, payload)?;
+        let r = rb.send().await?;
+
+        let res = r.json::<Data<T>>().await?;
+        if res.error.len() > 0 {
+            return Err(Error::ApiCallError(res.error[0].clone()));
+        }
+        match res.result {
+            None => Err(Error::AccountBalanceEmpty()),
+            Some(a) => Ok(a),
+        }
     }
 }
 
 impl ApiCalls for Kraken {
 
-    fn get_url(&self, f: &Functionality) -> Result<String> {
-        Ok(format!("{}{}", self.api.url, self.get_uri_path(f).unwrap()))
+    fn get_url(&self, params: &FunctionalityParams) -> String {
+        format!("{}{}", self.api.url, self.get_uri_path(params))
     }
 
-    fn get_uri_path(&self, f: &Functionality) -> Result<String> {
-        let p = self.api.get_function_params(f)?;
-        Ok(format!("/{}/{}/{}",
+    fn get_uri_path(&self, params: &FunctionalityParams) -> String {
+        format!("/{}/{}/{}",
             self.api.version, 
-            match p.access_type {
+            match params.access_type {
                 AccessType::Private => "private",
                 AccessType::Public => "public"
             },
-            p.uri_path))
+            params.uri_path)
+    }
+
+    fn get_request(&self, f: &Functionality, payload: HashMap<&str, String>) -> Result<ApiRequest>
+    {
+        let fp = self.api.get_function_params(f)?;
+
+        match fp.access_type {
+            AccessType::Public => {
+                return Ok(
+                    self.http_client.get(self.get_url(fp))
+                        .header("Content-Type", "application/x-www-form-urlencoded; charset=utf-8".to_string())
+                        .form(&payload));
+            },
+            AccessType::Private => {
+                let uri_path = self.get_uri_path(&fp);
+        
+                let nonce = Utc::now().timestamp_millis().to_string();
+                
+                let mut params = HashMap::new();
+                params.insert("nonce", nonce.clone());
+                params.extend(payload);
+                
+                let post_data = Api::encode_uri(&params);
+                
+                let signature = self.get_signature(&uri_path, &post_data, &nonce);
+        
+                let req = self.http_client.post(format!("{}{}", self.api.url, uri_path))
+                    .header("API-Key", self.api.key.as_ref().unwrap())
+                    .header("API-Sign", &signature)
+                    .header("Content-Type", "application/x-www-form-urlencoded; charset=utf-8".to_string())
+                    .form(&params);
+        
+                Ok(req)
+            }
+        }        
     }
 }
 
@@ -110,17 +161,8 @@ pub struct Data<R> {
 impl SystemStatus for Kraken {
 
     async fn get_status(&self) -> Result<String> {
-        let request_url = self.get_url(&Functionality::SystemStatus)?;
-        println!("url: {}", request_url);
-        
-        let response = self.http_client.get(&request_url).send().await?;
-
-        let res = response.json::<Data<Status>>().await?;
-        if res.error.len() > 0 {
-            return Err(Error::ApiCallError(res.error[0].clone()));
-        }
-        println!("{:?}", res);
-        Ok(res.result.unwrap().status)
+        let r = self.get_data::<Status>(& Functionality::SystemStatus, HashMap::<&str, String>::new()).await?;
+        Ok(r.status)
     }
 }
 
@@ -128,53 +170,14 @@ impl SystemStatus for Kraken {
 impl ServerTime for Kraken {
 
     async fn get_time(&self) -> Result<DateTime> {
-        
-        let request_url = self.get_url(&Functionality::Time)?;
-        println!("url: {}", request_url);
-
-        let response = self.http_client.get(&request_url).send().await?;
-
-        let res = response.json::<Data<Time>>().await?;
-        if res.error.len() > 0 {
-            return Err(Error::ApiCallError(res.error[0].clone()));
-        }
-        println!("{:?}", res);
-        Ok(res.result.unwrap().rfc1123)
+        let time = self.get_data::<Time>(& Functionality::Time, HashMap::<&str, String>::new()).await?;
+        Ok(time.rfc1123)
     }
 }
 
 #[async_trait]
 impl Balance for Kraken {
     async fn get_balance(&self) -> Result<AccountBalance> {
-        
-        let uri_path = self.get_uri_path(&Functionality::Balance)?;
-        println!("uri: {}", uri_path);
-        
-        let nonce = Utc::now().timestamp_millis().to_string();
-        
-        let mut params = HashMap::new();
-        params.insert("nonce", nonce.clone());
-        
-        let post_data = Api::encode_uri(&params);
-        
-        let signature = self.get_signature(&uri_path, &post_data, &nonce)?;
-
-        let f = self.http_client.post(format!("{}{}", self.api.url, uri_path))
-            .header("API-Key", self.api.key.as_ref().unwrap())
-            .header("API-Sign", &signature)
-            .header("Content-Type", "application/x-www-form-urlencoded; charset=utf-8".to_string())
-            .form(&params);
-        println!("Reqest: {:?}", f);
-        let res = f.send().await?;
-
-        let res = res.json::<Data<AccountBalance>>().await?;
-        if res.error.len() > 0 {
-            return Err(Error::ApiCallError(res.error[0].clone()));
-        }
-
-        match res.result {
-            None => Err(Error::AccountBalanceEmpty()),
-            Some(a) => Ok(a),
-        }
+        self.get_data::<AccountBalance>(& Functionality::Balance, HashMap::<&str, String>::new()).await      
     }
 }
