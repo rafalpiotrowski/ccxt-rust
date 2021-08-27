@@ -37,7 +37,13 @@ async fn main() {
         match b {
             Ok(a) => println!("Kraken balance is: {:?}", a),
             Err(x) => println!("Kraken balance failed: {:?}", x) 
-        }        
+        };
+
+        let token = kraken.get_web_socket_token().await;
+        match token {
+            Ok(t) => println!("Kraken web socket token: {:?}", t),
+            Err(x) => println!("Kraken web token failed: {:?}", x) 
+        }
     });
 
     let _t1 = match h.await {

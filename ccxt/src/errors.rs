@@ -6,6 +6,8 @@ pub enum Error {
     ApiFunctionNotSupported(&'static str),
     #[error("error {0} when calling API")]
     ApiCallError(String),
+    #[error("no data returned")]
+    ApiCallNoData(),
     #[error("Account Balance has no positions")]
     AccountBalanceEmpty(),
     #[error("http error {0}")]

@@ -25,9 +25,11 @@ impl Kraken {
             api: Api::new("https://api.kraken.com", "0")
             .api_key(api_key)
             .api_secret(api_secret)
-            .function(Functionality::Time,FunctionalityParams::new(AccessType::Public, Action::Get, "Time"))
+            .function(Functionality::Balance,FunctionalityParams::new(AccessType::Private, Action::Post, "Balance"))
+            .function(Functionality::GetWebSocketsToken,FunctionalityParams::new(AccessType::Private, Action::Get, "GetWebSocketsToken"))
             .function(Functionality::SystemStatus,FunctionalityParams::new(AccessType::Public, Action::Get, "SystemStatus"))
-            .function(Functionality::Balance,FunctionalityParams::new(AccessType::Private, Action::Post, "Balance")),
+            .function(Functionality::Time,FunctionalityParams::new(AccessType::Public, Action::Get, "Time"))
+            ,
             http_client: reqwest::Client::new()    
             }
     }
@@ -52,6 +54,12 @@ impl Kraken {
         BASE64.encode(&mac.finalize().into_bytes())
     }
 
+    pub async fn get_data_no_params<T>(&self, f: &Functionality) -> Result<T> 
+        where T: DeserializeOwned
+    {
+        self.get_data::<T>(f, HashMap::<&str, String>::new()).await
+    }
+
     pub async fn get_data<T>(&self, f: &Functionality, payload: HashMap<&str, String>) -> Result<T> 
     where T: DeserializeOwned
     {
@@ -63,7 +71,7 @@ impl Kraken {
             return Err(Error::ApiCallError(res.error[0].clone()));
         }
         match res.result {
-            None => Err(Error::AccountBalanceEmpty()),
+            None => Err(Error::ApiCallNoData()),
             Some(a) => Ok(a),
         }
     }
@@ -121,6 +129,17 @@ impl ApiCalls for Kraken {
     }
 }
 
+impl Kraken {
+    
+    pub async fn get_web_socket_token(&self) -> Result<WebSocketToken> {
+        let t = 3;
+        if t {
+            println!("");
+        }
+        self.get_data_no_params::<WebSocketToken>(&Functionality::GetWebSocketsToken).await
+    }
+}
+
 #[derive(Deserialize, Debug)]
 pub struct Time {
     #[serde(with = "rfc1123_date_format")]
@@ -159,18 +178,16 @@ pub struct Data<R> {
 
 #[async_trait]
 impl SystemStatus for Kraken {
-
     async fn get_status(&self) -> Result<String> {
-        let r = self.get_data::<Status>(& Functionality::SystemStatus, HashMap::<&str, String>::new()).await?;
+        let r = self.get_data_no_params::<Status>(& Functionality::SystemStatus).await?;
         Ok(r.status)
     }
 }
 
 #[async_trait]
 impl ServerTime for Kraken {
-
     async fn get_time(&self) -> Result<DateTime> {
-        let time = self.get_data::<Time>(& Functionality::Time, HashMap::<&str, String>::new()).await?;
+        let time = self.get_data_no_params::<Time>(& Functionality::Time).await?;
         Ok(time.rfc1123)
     }
 }
@@ -178,6 +195,6 @@ impl ServerTime for Kraken {
 #[async_trait]
 impl Balance for Kraken {
     async fn get_balance(&self) -> Result<AccountBalance> {
-        self.get_data::<AccountBalance>(& Functionality::Balance, HashMap::<&str, String>::new()).await      
+        self.get_data_no_params::<AccountBalance>(& Functionality::Balance).await      
     }
 }

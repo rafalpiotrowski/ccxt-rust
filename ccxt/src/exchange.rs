@@ -212,7 +212,11 @@ pub trait ApiCalls {
     fn get_uri_path(&self, params: &FunctionalityParams) -> String;
     fn get_request(&self, f: &Functionality, payload: HashMap<&str, String>) -> Result<ApiRequest>;
 }
-
+#[derive(Deserialize, Debug, Clone, Default)]
+pub struct WebSocketToken {
+    pub token: String,
+    pub expires: u64
+}
 #[async_trait]
 pub trait ServerTime {
     async fn get_time(&self) -> Result<DateTime>;
@@ -222,8 +226,6 @@ pub trait ServerTime {
 pub trait SystemStatus {
     async fn get_status(&self) -> Result<String>;
 }
-
-
 #[derive(Deserialize, Debug, Clone, Default)]
 pub struct AccountBalance {
     pub CHF: Option<String>
